@@ -1,0 +1,20 @@
+---
+# Banking Application - Postgres to Iceberg Pipeline
+dag_id: banking_users_to_iceberg
+description: "Extract banking users tables to Iceberg in S3"
+schedule: "@daily"
+start_date: "2024-01-01"
+catchup: false
+
+steps:
+  ingest_users_table:
+    blueprint: postgres_to_iceberg_blueprint
+    table_name: users
+    schema_name: public
+    iceberg_namespace: banking
+    iceberg_table_name: users
+    s3_bucket: iceberg-warehouse
+    s3_prefix: warehouse
+    mode: overwrite
+    batch_size: 100
+    postgres_conn_id: postgres_banking
