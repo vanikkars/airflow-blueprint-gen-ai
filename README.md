@@ -186,9 +186,10 @@ client to 5432 with `bankinguser` hits the metadata database instead and fails w
 The Postgres source connection is automatically created during initialization. Verify it in the Airflow UI:
 
 1. Open http://localhost:8080
+![dags.png](pics/dags.png)
 2. Go to Admin > Connections
 3. Look for `postgres_banking` connection
-
+![connections.png](pics/connections.png)
 ### 4. Trigger the Pipeline
 
 1. Open Airflow UI at http://localhost:8080
