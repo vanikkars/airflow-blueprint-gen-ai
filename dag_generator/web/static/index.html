@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>DAG generator</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='%236e8cff' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='3.5' cy='8' r='1.8'/%3E%3Ccircle cx='12.5' cy='3.8' r='1.8'/%3E%3Ccircle cx='12.5' cy='12.2' r='1.8'/%3E%3Cpath d='M5.2 7.2l5.6-2.6M5.2 8.8l5.6 2.6'/%3E%3C/g%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <!-- Icons are defined once and referenced with <use>, so every instance
+         shares one stroke weight and one visual language. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <g id="i-dag" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <circle cx="4" cy="10" r="2.1" />
+          <circle cx="16" cy="5" r="2.1" />
+          <circle cx="16" cy="15" r="2.1" />
+          <path d="M6 9.1l8-3.2M6 10.9l8 3.2" />
+        </g>
+        <g id="i-check" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 8.5l3.2 3.2L13 5.4" />
+        </g>
+        <g id="i-alert" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2.4l5.6 10.2H2.4z" />
+          <path d="M8 6.3v3M8 11.2h.01" />
+        </g>
+        <g id="i-x" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </g>
+        <g id="i-ask" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="6" />
+          <path d="M6.3 6.2a1.75 1.75 0 013.4.6c0 1.2-1.7 1.4-1.7 2.6" />
+          <path d="M8 11.6h.01" />
+        </g>
+        <g id="i-save" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 4.2A1.2 1.2 0 014.2 3h6.1L13 5.7v6.1A1.2 1.2 0 0111.8 13H4.2A1.2 1.2 0 013 11.8z" />
+          <path d="M5.6 3v3.1h4.8" />
+          <path d="M5.6 10.2h4.8" />
+        </g>
+        <g id="i-copy" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5.6" y="5.6" width="7.4" height="7.4" rx="1.3" />
+          <path d="M10.4 3.6V3a.9.9 0 00-.9-.9H3.9A.9.9 0 003 3v5.6c0 .5.4.9.9.9h.6" />
+        </g>
+        <g id="i-reset" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 8a5 5 0 10-1.8 3.85" />
+          <path d="M13 3.4V8h-4" />
+        </g>
+        <g id="i-send" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.2 8h9.6" />
+          <path d="M8.8 4l4 4-4 4" />
+        </g>
+        <g id="i-menu" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" />
+        </g>
+      </defs>
+    </svg>
+
+    <div class="app" id="app" data-sidebar="closed">
+      <div class="scrim" id="scrim" aria-hidden="true"></div>
+
+      <aside class="sidebar" id="sidebar" aria-label="What this can build from">
+        <div class="brand">
+          <svg class="brand-mark" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+            <use href="#i-dag" />
+          </svg>
+          <div class="brand-text">
+            <h1>DAG generator</h1>
+            <p>Airflow blueprint pipelines</p>
+          </div>
+        </div>
+
+        <div class="panel-tabs" role="tablist" aria-label="Grounding">
+          <button class="panel-tab" role="tab" aria-selected="true" data-panel="tables">Tables</button>
+          <button class="panel-tab" role="tab" aria-selected="false" data-panel="dags">DAGs</button>
+          <button class="panel-tab" role="tab" aria-selected="false" data-panel="support">Support</button>
+        </div>
+
+        <div class="panel-body" id="panel-body" role="tabpanel" tabindex="0"></div>
+
+        <div class="sidebar-foot">
+          <span class="provider">
+            <span class="dot" id="status-dot" data-state="up"></span>
+            <b id="provider-name">connecting…</b>
+          </span>
+          <button class="btn" data-variant="ghost" data-size="sm" id="reset-btn" title="Forget this conversation">
+            <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-reset" /></svg>
+            Reset
+          </button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="btn sidebar-toggle" data-variant="ghost" data-size="sm" id="sidebar-btn" aria-label="Show source tables">
+            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-menu" /></svg>
+          </button>
+          <h2>New pipeline</h2>
+          <div class="topbar-spacer"></div>
+        </header>
+
+        <div class="thread" id="thread">
+          <div class="thread-inner" id="thread-inner"></div>
+        </div>
+
+        <div class="composer-wrap">
+          <form class="composer" id="composer">
+            <div class="composer-box">
+              <label class="sr-only" for="input" hidden>Describe the pipeline</label>
+              <textarea
+                id="input"
+                rows="1"
+                placeholder="Describe the pipeline you want — e.g. import the users table into Iceberg, hourly"
+                autocomplete="off"
+                spellcheck="false"
+              ></textarea>
+              <button class="btn" data-variant="primary" id="send-btn" type="submit" disabled>
+                <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-send" /></svg>
+                Generate
+              </button>
+            </div>
+            <div class="composer-hint">
+              <span><kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line</span>
+              <span class="spacer"></span>
+              <span id="write-note">Nothing is written until you save</span>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
