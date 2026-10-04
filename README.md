@@ -109,6 +109,7 @@ make help            # list every target
 | `make seed-data` | Recreate the schema and populate all six source tables |
 | `make wizard` | Build a pipeline YAML by answering validated questions (no LLM) |
 | `make gen` | Describe a pipeline in your own words (needs an LLM key) |
+| `make web` | The same chat in a browser, on http://localhost:8000 |
 
 A full first run:
 
@@ -140,6 +141,13 @@ before anything is written. No LLM is involved.
 and let the model draft it. It needs a model provider: `ANTHROPIC_API_KEY`,
 `LLM_PROVIDER=bedrock`, or `LLM_PROVIDER=ollama` to run a local model so nothing
 leaves your machine.
+
+`make web` is that same chat in a browser, on `http://localhost:8000`. The
+generated YAML is rendered as a card with its reasoning and warnings, a
+**Save to airflow/dags/** button writes it, and the sidebar shows the live source
+catalog and the DAGs that already exist. Nothing is written until you save, so a
+first attempt you do not like costs nothing. It is a local development tool —
+it binds to localhost and has no authentication.
 
 Either way the output goes through the same pre-write validation, because Airflow
 loads the whole dags folder through one `loader.py` and a malformed file takes the

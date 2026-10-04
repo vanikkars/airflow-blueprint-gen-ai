@@ -4,7 +4,7 @@ PY ?= .venv/bin/python
 # Compose entrypoint. Picks up docker-compose.yml from the repo root.
 COMPOSE ?= docker compose
 
-.PHONY: help docker-build docker-up-build docker-up docker-down docker-logs docker-shell docker-ps docker-clean seed-data gen wizard
+.PHONY: help docker-build docker-up-build docker-up docker-down docker-logs docker-shell docker-ps docker-clean seed-data gen wizard web
 
 help:
 	@echo "Airflow Blueprint - Make Commands"
@@ -24,6 +24,7 @@ help:
 	@echo "  make seed-data       - Populate all six source tables"
 	@echo ""
 	@echo "Pipeline Generation:"
+	@echo "  make web             - Browser chat UI on http://localhost:8000"
 	@echo "  make gen             - Chat: describe a pipeline in your own words"
 	@echo "  make wizard          - Guided interview, one validated question at a time"
 	@echo ""
@@ -89,5 +90,12 @@ gen:
 # blueprint registry, source catalog and connection list, so no LLM is involved.
 wizard:
 	$(PY) -m dag_generator.cli --wizard
+
+# Browser UI for the same chat. Binds to localhost only: it holds sessions in
+# memory, has no authentication, and writes into airflow/dags/ when asked.
+# Override the port with: make web PORT=9000
+PORT ?= 8000
+web:
+	$(PY) -m dag_generator.cli --web --port $(PORT)
 
 

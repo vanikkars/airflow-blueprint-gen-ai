@@ -8,6 +8,10 @@ Guided wizard - one question per parameter, each answer validated:
 
     python -m dag_generator.cli --wizard
 
+Browser UI - the same chat, served on localhost:
+
+    python -m dag_generator.cli --web
+
 One-shot:
 
     python -m dag_generator.cli "import the transactions table into iceberg"
@@ -54,6 +58,27 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Serve the browser UI on localhost instead of running in the terminal.",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Interface for --web to bind (default: 127.0.0.1, localhost only).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port for --web (default: 8000).",
+    )
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Restart the --web server when its source changes.",
+    )
+    parser.add_argument(
         "--write",
         action="store_true",
         help="Write the DAG into airflow/dags/ when it validates (default: print only).",
@@ -91,6 +116,21 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO if args.verbose else logging.WARNING,
         format=f"{DIM}%(levelname)s %(message)s{RESET}",
     )
+
+    # The browser UI is the chat loop with an HTTP front end, so it takes the
+    # same provider settings and is checked before the terminal paths.
+    if args.web:
+        from .web.server import run as run_web
+
+        return run_web(
+            host=args.host,
+            port=args.port,
+            model=args.model,
+            provider=args.provider,
+            schemas=tuple(args.schemas or ("public",)),
+            max_attempts=args.max_attempts,
+            reload=args.reload,
+        )
 
     # The wizard is deterministic - it asks, validates, and assembles the YAML
     # itself - so it needs no model or provider.

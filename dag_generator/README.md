@@ -21,9 +21,39 @@ request ──> gather grounding ──> prompt ──> LLM (structured) ──>
 From the repository root:
 
 ```bash
+make web          # browser chat on http://localhost:8000 (needs an LLM)
 make gen          # chat: describe it in your own words (needs an LLM)
 make wizard       # guided interview: one validated question at a time (no LLM)
 ```
+
+### Browser UI
+
+```
+make web                  # http://localhost:8000
+make web PORT=9000        # somewhere else
+```
+
+The same chat as `make gen`, with the YAML rendered as a card instead of
+scrolling past in the terminal. Each proposal shows the reasoning, the
+validated DAG, and any warnings; **Save to airflow/dags/** writes it. Nothing
+touches disk until you press it, so an unsatisfying first attempt costs
+nothing. Follow-ups work the same way as in the terminal — "actually make it
+hourly" resolves against the DAG just proposed.
+
+The sidebar carries the same grounding the model is given: the live source
+catalog, the DAGs that already exist, and the integrations the installed
+blueprints support.
+
+It is a single-user development tool. It binds to `127.0.0.1`, keeps sessions
+in memory, has no authentication, and writes into `airflow/dags/` — do not put
+it on a network. `--reload` restarts it when its own source changes:
+
+```bash
+.venv/bin/python -m dag_generator.cli --web --reload
+```
+
+`fastapi` and `uvicorn` are the only extra requirements, and Airflow 3 already
+depends on both. Installing the generator on its own needs `.[web]`.
 
 ### Guided wizard
 

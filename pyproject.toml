@@ -33,3 +33,10 @@ bedrock = [
 ollama = [
     "langchain-ollama>=0.2.0",
 ]
+
+# `make web`: the browser chat UI. Airflow 3 already pulls both in, so this
+# extra matters only when the generator is installed on its own.
+web = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+]
