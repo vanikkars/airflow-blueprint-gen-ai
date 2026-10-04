@@ -1,9 +1,9 @@
-airflow-blueprint>=0.5.0
-apache-airflow-providers-postgres>=5.11.0
-apache-airflow-providers-amazon>=8.22.0
-# NOTE: do NOT add the sql-postgres extra - it requires sqlalchemy>=2.0,
-# which conflicts with Airflow 2.11 (sqlalchemy<2.0). The catalog is
-# reached over REST via the iceberg-rest service instead.
+airflow-blueprint>=0.5.0.
+apache-airflow-providers-postgres>=7.0.2
+apache-airflow-providers-amazon>=9.36.0
+
+apache-airflow-providers-fab>=3.9.0
+
 pyiceberg[s3fs,pyarrow]>=0.6.0
 pyarrow>=15.0.0
 psycopg2-binary>=2.9.9
