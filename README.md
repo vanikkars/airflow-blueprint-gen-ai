@@ -121,7 +121,7 @@ Then trigger a DAG from the Airflow UI — see [Trigger the Pipeline](#4-trigger
 
 ```bash
 # Navigate to project directory
-cd airflow-blue-print-project
+cd airflow-blueprint
 ```
 
 Configuration lives in `.env` (copy `.env.example` if you have none). The
