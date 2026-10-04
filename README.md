@@ -23,7 +23,7 @@ Airflow DAG backed by the reusable Postgres→Iceberg blueprint.
 │  postgres-   │──────> │  + Blueprint │─────────> │  ┌────────────────────────────┐  │
 │  banking     │ extract│              │  write    │  │ iceberg-rest  (catalog)    │  │
 │  :5432 (5433)│        │  scheduler   │           │  │ :8181  REST API            │  │
-│              │        │  webserver   │ ────────> │  │   ├─ banking.users         │  │
+│              │        │  api-server  │ ────────> │  │   ├─ banking.users         │  │
 │  6 tables    │        └──────┬───────┘  commit   │  │   └─ banking.transactions  │  │
 └──────────────┘               │                   │  └─────────────┬──────────────┘  │
                                │                   │                │ JDBC            │
@@ -47,7 +47,7 @@ An Iceberg table is two things, stored separately:
 | **Catalog** — namespace/table → current metadata pointer | `postgres-catalog`, a dedicated Postgres, via `iceberg-rest` | Yes (`postgres_catalog_data` volume) |
 | **Table data** — Parquet files, manifests, metadata JSON | MinIO, `s3://iceberg-warehouse/warehouse/` | Yes (`minio_data` volume) |
 
-The catalog is reached over **REST** rather than PyIceberg's SQL catalog: `pyiceberg[sql-postgres]` requires `sqlalchemy>=2.0`, while Airflow 2.11 pins `sqlalchemy<2.0`. Running the catalog as its own service keeps that dependency out of the Airflow image entirely.
+The catalog is reached over **REST** rather than PyIceberg's SQL catalog. Airflow 3 is itself on `sqlalchemy>=2.0`, so the old version conflict is gone, but running the catalog as its own service still keeps catalog dependencies and the JDBC driver out of the Airflow image entirely.
 
 ### Where things run
 
@@ -79,7 +79,7 @@ airflow-blue-print-project /
 │   │   └── README.md              # Generator documentation
 │   ├── requirements.txt           # Python dependencies
 │   └── README.md                  # Banking app documentation
-├── docker-compose.airflow.yml     # All Docker services (Airflow + Postgres + MinIO + Iceberg REST)
+├── docker-compose.yml     # All Docker services (Airflow + Postgres + MinIO + Iceberg REST)
 ├── Makefile                       # make help
 ├── pyproject.toml                 # Project configuration
 └── README.md
@@ -124,35 +124,53 @@ Then trigger a DAG from the Airflow UI — see [Trigger the Pipeline](#4-trigger
 cd airflow-blue-print-project
 ```
 
-Configuration lives in `.env`. The defaults work as-is; the one setting worth
-understanding is `AIRFLOW_UID`:
+Configuration lives in `.env` (copy `.env.example` if you have none). The
+defaults work as-is. Two settings are worth understanding:
 
 ```bash
-AIRFLOW_UID=50000    # the `airflow` user baked into the image
+AIRFLOW_UID=50000                      # owns files on the bind mounts
+AIRFLOW__CORE__FERNET_KEY=<stable key> # or saved connections become undecryptable
 ```
 
-**On macOS keep `50000`.** Setting it to your own `id -u` (e.g. `501`) breaks
-startup: that UID has no entry in the image's `/etc/passwd`, and Airflow refuses
-to run as a user without a name, failing with
-`getpwuid(): uid not found` and then `You need to initialize the database`.
-The `AIRFLOW_UID=$(id -u)` advice applies to Linux hosts, where it prevents
-root-owned files on bind mounts; Docker Desktop on macOS already maps ownership.
+`AIRFLOW_UID` is the UID that owns files on the bind mounts (`logs/`,
+`airflow/plugins/`). `50000` is the `airflow` user baked into the image and is a
+safe default everywhere. On Linux, setting it to your own `id -u` avoids
+root-owned files on those mounts; upstream recommends that, and a UID with no
+`/etc/passwd` entry works fine because the image's entrypoint adds one
+dynamically. The `airflow-init` service runs as root solely to `chown` the
+mounted directories to this UID before the other services start.
+
+`AIRFLOW__CORE__FERNET_KEY` must stay stable across restarts; if it changes,
+previously saved connection passwords can no longer be decrypted. Generate one
+with:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
 ### 2. Start the Services
 
 ```bash
 # Start all services
-docker-compose -f docker-compose.airflow.yml up -d
+make docker-up-build
 
-# Wait for services to be healthy (about 30-60 seconds)
-docker-compose -f docker-compose.airflow.yml ps
+# Wait for services to be healthy
+make docker-ps
 ```
+
+`airflow-init` runs first (DB migration, admin user, directory ownership) and the
+other services wait for it to complete. Expect the **first** start to take a few
+minutes: every Airflow container pip-installs `_PIP_ADDITIONAL_REQUIREMENTS` on
+each boot — see [Python dependencies](#python-dependencies).
+
+The `postgres_banking` connection is created by the one-shot `airflow-connections`
+service, so no manual `airflow connections add` is needed.
 
 Services will be available at:
 
 | Service | Address | Credentials |
 |---|---|---|
-| Airflow UI | http://localhost:8080 | `admin` / `admin` |
+| Airflow UI | http://localhost:8080 | `_AIRFLOW_WWW_USER_USERNAME` / `_AIRFLOW_WWW_USER_PASSWORD` from `.env` (default `airflow` / `airflow`) |
 | MinIO Console | http://localhost:9001 | `minioadmin` / `minioadmin` |
 | Iceberg REST catalog | http://localhost:8181 | — |
 | Source PostgreSQL (`bankingdb`) | localhost:**5433** | `bankinguser` / `bankingpass` |
@@ -168,9 +186,10 @@ client to 5432 with `bankinguser` hits the metadata database instead and fails w
 The Postgres source connection is automatically created during initialization. Verify it in the Airflow UI:
 
 1. Open http://localhost:8080
+![dags.png](pics/dags.png)
 2. Go to Admin > Connections
 3. Look for `postgres_banking` connection
-
+![connections.png](pics/connections.png)
 ### 4. Trigger the Pipeline
 
 1. Open Airflow UI at http://localhost:8080
@@ -185,9 +204,9 @@ Verify the result in the Iceberg catalog:
 curl -s http://localhost:8181/v1/namespaces/banking/tables | jq
 ```
 
-> **Heads up:** `airflow/requirements.txt` is installed by `airflow-init`, which
-> then exits, so a container recreate loses `pyiceberg` and tasks fail with
-> `ModuleNotFoundError` — see [Known gaps](#known-gaps).
+> **Note:** `airflow/requirements.txt` is baked into the image at build time, so
+> dependencies survive a container recreate. Rebuild after editing it — see
+> [Python dependencies](#python-dependencies).
 
 ## Blueprint Configuration
 
@@ -414,8 +433,11 @@ Switch catalogs by setting `ICEBERG_CATALOG_URI` in `.env` (default
 # Scheduler logs
 docker logs -f airflow-scheduler
 
-# Webserver logs
-docker logs -f airflow-webserver
+# API server logs (the UI and REST API; replaces the 2.x webserver)
+docker logs -f airflow-apiserver
+
+# DAG processor logs - DAG parsing errors show up here, not in the scheduler
+docker logs -f airflow-dag-processor
 
 # Task logs are available in the Airflow UI
 ```
@@ -424,58 +446,11 @@ docker logs -f airflow-webserver
 
 ```bash
 # View all services status
-docker-compose -f docker-compose.airflow.yml ps
+docker compose ps
 
 # Check specific service
 docker exec postgres-banking pg_isready -U bankinguser
 ```
-
-### Common Issues
-
-**Issue**: `getpwuid(): uid not found` / `ERROR: You need to initialize the database`
-- `AIRFLOW_UID` in `.env` is set to a UID the image has no user for. Set it back to
-  `50000`, fix volume ownership, and re-run init:
-  ```bash
-  docker run --rm -v airflow-blue-print-project_airflow_logs:/l -v airflow-blue-print-project_airflow_plugins:/p \
-    alpine chown -R 50000:0 /l /p
-  docker compose -f docker-compose.airflow.yml up airflow-init
-  ```
-- Note `airflow-init` exits 0 even when a step inside it fails, so check its logs
-  (`docker logs airflow-blue-print-project-airflow-init-1`) rather than trusting the exit code.
-
-**Issue**: `password authentication failed for user "bankinguser"` from a SQL client
-- You are on port **5432** (metadata Postgres). Source data is on **5433**.
-
-**Issue**: `ModuleNotFoundError: No module named 'pyiceberg'` in a task
-- `requirements.txt` is installed by `airflow-init`, which then exits — the
-  scheduler and webserver never install it, and anything installed by hand is lost
-  on recreate. See [Known gaps](#known-gaps).
-
-**Issue**: `NotInstalledError: SQLAlchemy support not installed` from PyIceberg
-- Something requested the **SQL** catalog. This stack uses the **REST** catalog;
-  check `ICEBERG_CATALOG_URI`. Installing `pyiceberg[sql-postgres]` is not a fix —
-  it pulls `sqlalchemy>=2.0` and breaks Airflow 2.11.
-
-**Issue**: `iceberg-rest` restarting with `No suitable driver found for jdbc:postgresql`
-- The `iceberg-rest-init` container did not populate the `jdbc_drivers` volume.
-  Re-run it: `docker compose -f docker-compose.airflow.yml up iceberg-rest-init`
-
-**Issue**: DAG not appearing in Airflow UI
-- YAML DAGs are built by `airflow/dags/loader.py`; without it Airflow ignores bare
-  YAML. Check `docker exec airflow-scheduler airflow dags list-import-errors`.
-- DAG files must match the discovery glob `*.dag.yaml`.
-
-**Issue**: Airflow tasks suddenly fail to read or write Iceberg tables
-- Check that `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in `.env` are still
-  MinIO's `minioadmin`. `docker-compose` feeds them to Airflow and `iceberg-rest`,
-  so replacing them with real AWS credentials breaks the local stack.
-
-**Issue**: `pull access denied for minio/minio`
-- MinIO is no longer published on Docker Hub; this project pulls from `quay.io`.
-
-**Issue**: S3/MinIO connection fails
-- Verify MinIO is running: `docker ps | grep minio`
-- Ensure the bucket exists: http://localhost:9001
 
 ## Development
 
@@ -499,24 +474,32 @@ Edit `airflow/blueprints/postgres_to_iceberg.py` to customize:
 ### Testing
 
 ```bash
-# Validate DAG YAML
-docker exec airflow-webserver airflow dags list
+# List the DAGs that were built from the YAML
+docker exec airflow-apiserver airflow dags list
 
-# Test a specific DAG
-docker exec airflow-webserver airflow dags test banking_users_to_iceberg 2024-01-01
+# Show why a DAG file failed to parse
+docker exec airflow-dag-processor airflow dags list-import-errors
 
-# Lint DAGs
-docker exec airflow-webserver blueprint lint
+# Run a DAG end to end, in-process. In Airflow 3 this takes no date argument;
+# it uses the current time as the logical date.
+docker exec airflow-apiserver airflow dags test banking_users_to_iceberg
 ```
+
+> `blueprint lint` does not work in this project. The CLI only discovers
+> blueprints inside the DAGs directory, while this project keeps them in the
+> sibling `airflow/blueprints/` (which is exactly why `loader.py` points the
+> registry at both directories). Running it from `/opt/airflow` additionally
+> trips a recursion guard, because `logs/` is mounted inside the Airflow home.
+> Use `airflow dags list` / `list-import-errors` to validate instead.
 
 ## Cleanup
 
 ```bash
 # Stop all services
-docker-compose -f docker-compose.airflow.yml down
+docker compose down
 
 # Remove volumes (CAUTION: deletes all data)
-docker-compose -f docker-compose.airflow.yml down -v
+docker compose down -v
 
 # Remove only specific volumes
 docker volume rm airflow-blue-print-project_postgres_banking_data
@@ -528,39 +511,43 @@ Volumes in this stack:
 | Volume | Holds |
 |---|---|
 | `postgres_banking_data` | Source banking data |
-| `postgres_data` | Airflow metadata |
+| `postgres-db-volume` | Airflow metadata (named per the upstream reference file) |
 | `postgres_catalog_data` | Iceberg catalog (table pointers) |
 | `minio_data` | Iceberg table files |
 | `jdbc_drivers` | Postgres JDBC driver for the REST catalog |
-| `airflow_logs`, `airflow_plugins` | Airflow runtime |
+
+Airflow logs and plugins are **bind mounts** (`./logs`, `./airflow/plugins`), not
+named volumes, matching the upstream reference file — task logs are readable
+directly on the host.
 
 Dropping `postgres_catalog_data` deletes the Iceberg **catalog** while leaving the
 data files in MinIO — the tables become unreachable even though the Parquet is
 intact. Drop it together with `minio_data`, or neither.
 
-## Known gaps
+## Python dependencies
 
-One thing is not wired up yet:
+Following the official reference compose file, extra dependencies are installed
+through `_PIP_ADDITIONAL_REQUIREMENTS`, declared in `x-airflow-common` in
+`docker-compose.yml`. The list mirrors `airflow/requirements.txt`.
 
-**Python dependencies do not survive a container recreate.**
-`airflow/requirements.txt` is pip-installed only by `airflow-init`, which then
-exits. The long-running scheduler and webserver never install it, so anything
-added by hand (as `pyiceberg` currently is) is lost on the next
-`docker compose up --force-recreate`, and tasks then fail with
-`ModuleNotFoundError: No module named 'pyiceberg'`. The durable fix is a small
-image:
+`apache-airflow-providers-fab` is required rather than optional:
+`AIRFLOW__CORE__AUTH_MANAGER` resolves `FabAuthManager` from it, and the init
+container's user creation needs its `airflow users` CLI.
 
-```dockerfile
-FROM apache/airflow:2.11.0-python3.11
-COPY airflow/requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+**These packages are reinstalled on every container start.** That costs startup
+time and needs network access on each boot. Upstream is explicit that this is a
+quick-check feature only; the durable alternative is an extended image, and
+`airflow/Dockerfile` is set up for it — see the switch-over steps in that file.
+
+After changing the dependency list, recreate the containers:
+
+```bash
+docker compose up -d --force-recreate
 ```
-
-then `build:` that for the three Airflow services instead of `image:`.
 
 ## Tech Stack
 
-- **Apache Airflow 2.11.0**: Workflow orchestration
+- **Apache Airflow 3.3.2**: Workflow orchestration (LocalExecutor; provisioning derived from the [official reference compose file](https://airflow.apache.org/docs/apache-airflow/3.3.2/docker-compose.yaml))
 - **Astronomer Blueprint**: DAG templating framework
 - **PostgreSQL 15**: Source database
 - **Apache Iceberg**: Table format (ACID commits, snapshots, time travel)

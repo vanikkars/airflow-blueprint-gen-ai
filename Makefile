@@ -1,24 +1,24 @@
 # Project interpreter. Override with: make gen PY=python3
 PY ?= .venv/bin/python
 
+# Compose entrypoint. Picks up docker-compose.yml from the repo root.
+COMPOSE ?= docker compose
+
 .PHONY: help docker-build docker-up-build docker-up docker-down docker-logs docker-shell docker-ps docker-clean seed-data
 
 help:
-	@echo "Schema Registry - Make Commands"
-	@echo "================================"
+	@echo "Airflow Blueprint - Make Commands"
+	@echo "=================================="
 	@echo ""
 	@echo "Docker Commands:"
 	@echo "  make docker-build    - Build Docker image"
-	@echo "  make docker-up       - Start services (production)"
+	@echo "  make docker-up       - Start the stack in the background"
 	@echo "  make docker-down     - Stop services"
 	@echo "  make docker-logs     - View service logs"
-	@echo "  make docker-shell    - Open shell in container"
+	@echo "  make docker-shell    - Open a shell in airflow-scheduler"
 	@echo "  make docker-ps       - Show running containers"
 	@echo "  make docker-clean    - Clean up Docker resources"
-	@echo ""
-	@echo "Development Commands:"
-	@echo "  make docker-dev      - Start development services (with postgres, redis)"
-	@echo "  make docker-dev-down - Stop development services"
+	@echo "  make docker-up-build - Rebuild images, then start"
 	@echo ""
 	@echo "Sample Data:"
 	@echo "  make seed-data       - Populate all six source tables"
@@ -26,32 +26,33 @@ help:
 
 # Docker Production Commands
 docker-build:
-	docker-compose build
+	$(COMPOSE) build
 
 docker-up-build:
-	docker-compose up --build
+	$(COMPOSE) up -d --build
 
 docker-up:
-	docker-compose up
-	@echo "✅ Services started"
-	@echo "📍 API: http://localhost:8000"
-	@echo "📖 Docs: http://localhost:8000/docs"
+	$(COMPOSE) up -d
+	@echo "✅ Services started (health checks take ~60s)"
+	@echo "📍 Airflow UI:    http://localhost:8080"
+	@echo "📍 MinIO console: http://localhost:9001"
+	@echo "📍 Iceberg REST:  http://localhost:8181"
 
 docker-down:
-	docker-compose down
+	$(COMPOSE) down
 	@echo "✅ Services stopped"
 
 docker-logs:
-	docker-compose logs -f registry_api
+	$(COMPOSE) logs -f
 
 docker-shell:
-	docker-compose exec registry_api /bin/bash
+	$(COMPOSE) exec airflow-scheduler /bin/bash
 
 docker-ps:
-	docker-compose ps
+	$(COMPOSE) ps
 
 docker-clean:
-	docker-compose down -v
+	$(COMPOSE) down -v
 	docker system prune -f
 	@echo "✅ Docker cleaned"
 

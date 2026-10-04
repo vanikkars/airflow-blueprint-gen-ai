@@ -5,8 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from airflow.decorators import task
-from airflow.utils.task_group import TaskGroup
+from airflow.sdk import TaskGroup, task
 from blueprint import Blueprint
 from pydantic import BaseModel, Field
 
@@ -78,7 +77,7 @@ class PostgresToIcebergBlueprint(Blueprint[PostgresToIcebergConfig]):
             def extract_postgres_schema(**context) -> dict[str, Any]:
                 """Extract table schema from Postgres."""
                 import psycopg2
-                from airflow.hooks.base import BaseHook
+                from airflow.sdk import BaseHook
 
                 conn = BaseHook.get_connection(config.postgres_conn_id)
                 pg_conn = psycopg2.connect(
@@ -122,7 +121,7 @@ class PostgresToIcebergBlueprint(Blueprint[PostgresToIcebergConfig]):
 
                 import pandas as pd
                 import psycopg2
-                from airflow.hooks.base import BaseHook
+                from airflow.sdk import BaseHook
 
                 conn = BaseHook.get_connection(config.postgres_conn_id)
                 pg_conn = psycopg2.connect(

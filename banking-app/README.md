@@ -30,10 +30,10 @@ The source Postgres database is part of the main docker-compose setup in the roo
 ```bash
 # From project root
 cd ..
-docker-compose -f docker-compose.airflow.yml up -d postgres-banking
+docker compose up -d postgres-banking
 
 # Check status
-docker-compose -f docker-compose.airflow.yml ps postgres-banking
+docker compose ps postgres-banking
 ```
 
 The database will be available at:
@@ -96,7 +96,7 @@ banking-app/
 │   └── README.md
 └── README.md                   # This file
 
-Note: The Postgres database is defined in ../docker-compose.airflow.yml
+Note: The Postgres database is defined in ../docker-compose.yml
 ```
 
 ## Database Schema
@@ -182,11 +182,11 @@ docker exec -i postgres-banking psql -U bankinguser bankingdb < backup.sql
 cd ..
 
 # Stop and remove postgres-banking volume
-docker-compose -f docker-compose.airflow.yml down
+docker compose down
 docker volume rm airflow-blue-print-project_postgres_banking_data
 
 # Start fresh
-docker-compose -f docker-compose.airflow.yml up -d postgres-banking
+docker compose up -d postgres-banking
 
 # Regenerate data
 cd banking-app
@@ -197,10 +197,10 @@ python scripts/generate_banking_data.py --users 1000 --transactions 5
 
 ```bash
 # From project root
-docker-compose -f docker-compose.airflow.yml logs -f postgres-banking
+docker compose logs -f postgres-banking
 
 # View last 100 lines
-docker-compose -f docker-compose.airflow.yml logs --tail=100 postgres-banking
+docker compose logs --tail=100 postgres-banking
 ```
 
 ## Integration with Data Pipeline
@@ -212,7 +212,7 @@ To run the complete pipeline:
 1. **Start all services** (from project root):
    ```bash
    cd ..
-   docker-compose -f docker-compose.airflow.yml up -d
+   docker compose up -d
    ```
 
 2. **Generate banking data**:
@@ -230,7 +230,7 @@ To run the complete pipeline:
 
 **Port already in use**
 ```bash
-# Edit ../docker-compose.airflow.yml and change the port mapping
+# Edit ../docker-compose.yml and change the port mapping
 # Change "5433:5432" to "5434:5432" in postgres-banking service
 ```
 
@@ -243,10 +243,10 @@ chmod +x scripts/generate_banking_data.py
 **Connection refused**
 ```bash
 # Check if container is running (from project root)
-docker-compose -f docker-compose.airflow.yml ps postgres-banking
+docker compose ps postgres-banking
 
 # Check logs
-docker-compose -f docker-compose.airflow.yml logs postgres-banking
+docker compose logs postgres-banking
 ```
 
 **Data not persisting**
