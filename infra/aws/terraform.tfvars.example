@@ -1,0 +1,33 @@
+# Copy to terraform.tfvars and adjust.
+#   cp terraform.tfvars.example terraform.tfvars
+
+aws_region   = "us-east-1"
+project_name = "pipelines-gen-ai"
+environment  = "dev"
+
+# Confirm what your account can invoke before setting these:
+#   aws bedrock list-inference-profiles --region us-east-1
+bedrock_model_ids = [
+  "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+]
+
+# Regions a "us." inference profile may route to. All must be allowed in IAM.
+inference_profile_regions = ["us-east-1", "us-east-2", "us-west-2"]
+
+# "user" for local development, "role" for anything running inside AWS.
+access_mode       = "user"
+create_access_key = true
+
+# For access_mode = "role":
+# role_trusted_principals = ["arn:aws:iam::016065103695:root"]
+# role_trusted_services   = ["ec2.amazonaws.com"]
+
+# Optional extras, both off by default. See variables.tf for the trade-offs.
+enable_guardrail          = false
+enable_invocation_logging = false
+
+common_tags = {
+  Environment = "dev"
+  Project     = "pipelines-gen-ai"
+  ManagedBy   = "terraform"
+}

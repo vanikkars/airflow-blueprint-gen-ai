@@ -71,6 +71,14 @@ airflow-blue-print-project /
 │   ├── lib/                       # Custom Python libraries
 │   ├── tasks/                     # Custom task implementations
 │   └── requirements.txt           # Python dependencies for Airflow
+├── dag_generator/                  # Build a pipeline YAML without writing one
+│   ├── wizard.py                  # Guided interview, validated answer by answer
+│   ├── slots.py                   # Per-answer validators (hard errors vs warnings)
+│   ├── capabilities.py            # Supported source->target pairs, from the registry
+│   ├── chat.py                    # Free-form chat around the LLM generator
+│   ├── chain.py                   # prompt -> LLM -> validate -> repair
+│   ├── validate.py                # Pre-write checks against the real config models
+│   └── README.md                  # Generator documentation
 ├── banking-app/                    # Banking application (source database)
 │   ├── init-scripts/              # Banking database schema
 │   │   └── 02-init-banking-schema.sql  # all six tables
@@ -99,6 +107,9 @@ make help            # list every target
 | `make docker-down` | Stop it |
 | `make docker-logs` | Follow service logs |
 | `make seed-data` | Recreate the schema and populate all six source tables |
+| `make wizard` | Build a pipeline YAML by answering validated questions (no LLM) |
+| `make gen` | Describe a pipeline in your own words (needs an LLM key) |
+| `make web` | The same chat in a browser, on http://localhost:8000 |
 
 A full first run:
 
@@ -108,6 +119,39 @@ make seed-data
 ```
 
 Then trigger a DAG from the Airflow UI — see [Trigger the Pipeline](#4-trigger-the-pipeline).
+
+## Adding a pipeline
+
+A pipeline is one `*.dag.yaml` file in `airflow/dags/`. You can write it by hand,
+or let `make wizard` ask you for each parameter:
+
+```bash
+make wizard
+```
+
+It asks what moves where, which table, where it lands, how it is written and when
+it runs — checking every answer against the live blueprint registry, the source
+database and the Airflow connection list as you go. An unsupported integration or
+a table that does not exist is refused on the spot, with what *does* exist; things
+that are merely worth knowing (PII landing unmasked, `numeric` losing precision,
+`overwrite` dropping the table) are collected and shown with the finished YAML
+before anything is written. No LLM is involved.
+
+`make gen` is the conversational alternative — describe the pipeline in a sentence
+and let the model draft it. It needs a model provider: `ANTHROPIC_API_KEY`,
+`LLM_PROVIDER=bedrock`, or `LLM_PROVIDER=ollama` to run a local model so nothing
+leaves your machine.
+
+`make web` is that same chat in a browser, on `http://localhost:8000`. The
+generated YAML is rendered as a card with its reasoning and warnings, a
+**Save to airflow/dags/** button writes it, and the sidebar shows the live source
+catalog and the DAGs that already exist. Nothing is written until you save, so a
+first attempt you do not like costs nothing. It is a local development tool —
+it binds to localhost and has no authentication.
+
+Either way the output goes through the same pre-write validation, because Airflow
+loads the whole dags folder through one `loader.py` and a malformed file takes the
+entire dagbag with it. See [`dag_generator/README.md`](dag_generator/README.md).
 
 ## Quick Start
 

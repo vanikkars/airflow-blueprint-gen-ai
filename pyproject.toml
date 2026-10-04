@@ -9,4 +9,34 @@ dependencies = [
     "airflow-blueprint>=0.5.0",
     "psycopg2-binary>=2.9.9",
     "pyyaml>=6.0",
+    # dag_generator: the LLM path used by `make gen`. The wizard (`make wizard`)
+    # needs none of this - it reads the blueprint registry and the source
+    # catalog directly - but both live in the same package, so chat.py imports
+    # langchain_core at module scope.
+    "langchain-core>=0.3.0",
+    "langchain-anthropic>=0.3.0",
+    # dag_generator reads LLM_PROVIDER and the provider settings from the project
+    # .env at import time. Airflow happens to pull this in too, but the generator
+    # depends on it directly, so declare it.
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# `make gen --provider bedrock`: routes the same models through AWS instead of
+# the Anthropic API. Separate because it drags in boto3.
+bedrock = [
+    "langchain-aws>=0.2.0",
+]
+
+# `make gen --provider ollama`: runs the model on this machine, so no request and
+# no schema metadata leaves the host. Needs a locally running Ollama server.
+ollama = [
+    "langchain-ollama>=0.2.0",
+]
+
+# `make web`: the browser chat UI. Airflow 3 already pulls both in, so this
+# extra matters only when the generator is installed on its own.
+web = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
 ]
